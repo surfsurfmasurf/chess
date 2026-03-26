@@ -7,16 +7,38 @@ Terminal Chess Game - 키보드만으로 플레이하는 체스
 import os
 import sys
 
-# UTF-8 출력 보장
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout.reconfigure(encoding='utf-8')
-if sys.stderr.encoding != 'utf-8':
-    sys.stderr.reconfigure(encoding='utf-8')
-if sys.stdin.encoding != 'utf-8':
+# UTF-8 입출력 보장
+try:
+    if sys.stdout.encoding and sys.stdout.encoding.lower().replace('-', '') != 'utf8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+try:
+    if sys.stderr.encoding and sys.stderr.encoding.lower().replace('-', '') != 'utf8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+try:
+    if sys.stdin.encoding and sys.stdin.encoding.lower().replace('-', '') != 'utf8':
+        sys.stdin.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
+def safe_input(prompt=""):
+    """인코딩 오류에 안전한 input 래퍼"""
     try:
-        sys.stdin.reconfigure(encoding='utf-8')
+        return input(prompt)
+    except UnicodeDecodeError:
+        # stdin에서 직접 바이트로 읽기
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        try:
+            raw = sys.stdin.buffer.readline()
+            return raw.decode('utf-8', errors='replace').rstrip('\n\r')
+        except Exception:
+            return raw.decode('latin-1', errors='replace').rstrip('\n\r')
     except Exception:
-        pass
+        return ""
 
 # ═══════════════════════════════════════════
 #  기물 유니코드 & 색상
@@ -573,7 +595,7 @@ class TerminalChessUI:
         while True:
             print(f"\n  프로모션! 기물을 선택하세요:")
             print(f"  q = ♛ 퀸  |  r = ♜ 룩  |  b = ♝ 비숍  |  n = ♞ 나이트")
-            choice = input(f"  선택 [q]: ").strip().lower()
+            choice = safe_input(f"  선택 [q]: ").strip().lower()
             if choice in ('', 'q'): return 'queen'
             if choice == 'r': return 'rook'
             if choice == 'b': return 'bishop'
@@ -625,7 +647,7 @@ class TerminalChessUI:
 
             # 게임 종료 확인
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
@@ -637,7 +659,7 @@ class TerminalChessUI:
             # 입력 받기
             turn_symbol = "⚪" if self.engine.turn == 'white' else "⚫"
             try:
-                user_input = input(f"  {turn_symbol} 입력: ").strip()
+                user_input = safe_input(f"  {turn_symbol} 입력: ").strip()
             except (EOFError, KeyboardInterrupt):
                 print("\n  게임을 종료합니다. 👋")
                 break
@@ -853,7 +875,7 @@ class TerminalChessAI(TerminalChessUI):
             self.render()
 
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
@@ -885,7 +907,7 @@ class TerminalChessAI(TerminalChessUI):
             # 사람 차례
             turn_symbol = "⚪" if self.engine.turn == 'white' else "⚫"
             try:
-                user_input = input(f"  {turn_symbol} 입력: ").strip()
+                user_input = safe_input(f"  {turn_symbol} 입력: ").strip()
             except (EOFError, KeyboardInterrupt):
                 print("\n  게임을 종료합니다. 👋")
                 break
@@ -1039,7 +1061,7 @@ class NetworkChess(TerminalChessUI):
                 break
 
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
@@ -1085,7 +1107,7 @@ class NetworkChess(TerminalChessUI):
             # 내 차례: 입력 받기
             turn_symbol = "⚪" if my_color == 'white' else "⚫"
             try:
-                user_input = input(f"  {turn_symbol} 내 차례: ").strip()
+                user_input = safe_input(f"  {turn_symbol} 내 차례: ").strip()
             except (EOFError, KeyboardInterrupt):
                 self._send({'type': 'resign'})
                 print("\n  기권합니다. 👋")
@@ -1296,7 +1318,7 @@ def main():
   ╚══════════════════════════════════════════╝
 """)
 
-    choice = input("  선택: ").strip()
+    choice = safe_input("  선택: ").strip()
 
     if choice == '1':
         ui = TerminalChessUI()
@@ -1311,17 +1333,17 @@ def main():
         ui = TerminalChessAI(ai_color='black', depth=4)
         ui.run()
     elif choice == '5':
-        name = input("  이름 입력: ").strip() or "호스트"
-        port = input("  포트 번호 [5555]: ").strip()
+        name = safe_input("  이름 입력: ").strip() or "호스트"
+        port = safe_input("  포트 번호 [5555]: ").strip()
         port = int(port) if port else 5555
         run_server('0.0.0.0', port, name)
     elif choice == '6':
-        host = input("  상대 IP 주소: ").strip()
+        host = safe_input("  상대 IP 주소: ").strip()
         if not host:
             print("  ❌ IP 주소를 입력하세요.")
             return
-        name = input("  이름 입력: ").strip() or "게스트"
-        port = input("  포트 번호 [5555]: ").strip()
+        name = safe_input("  이름 입력: ").strip() or "게스트"
+        port = safe_input("  포트 번호 [5555]: ").strip()
         port = int(port) if port else 5555
         run_client(host, port, name)
     elif choice in ('q', 'quit'):
