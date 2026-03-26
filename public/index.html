@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Chess</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    color: #eee;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  #lobby {
+    text-align: center;
+  }
+
+  #lobby h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #e2b96f, #f0d9a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  #lobby p { color: #888; margin-bottom: 2rem; }
+
+  #lobby input {
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    border: 2px solid #333;
+    border-radius: 8px;
+    background: #16213e;
+    color: #eee;
+    outline: none;
+    width: 260px;
+  }
+
+  #lobby input:focus { border-color: #e2b96f; }
+
+  #lobby button {
+    padding: 12px 32px;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #e2b96f, #c9973e);
+    color: #1a1a2e;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: transform 0.1s;
+  }
+
+  #lobby button:hover { transform: scale(1.05); }
+
+  #game-container {
+    display: none;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .game-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .player-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: #16213e;
+    border-radius: 8px;
+    margin: 8px 0;
+    min-width: 100%;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
+  .player-bar.active {
+    border: 2px solid #e2b96f;
+    background: #1a2744;
+  }
+
+  .player-bar .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #555;
+  }
+
+  .player-bar.active .dot { background: #4caf50; }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: 560px;
+    height: 560px;
+    border: 3px solid #e2b96f;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .square {
+    width: 70px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 46px;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    transition: background 0.1s;
+  }
+
+  .square.light { background: #f0d9b5; }
+  .square.dark { background: #b58863; }
+  .square.selected { background: #7fc97f !important; }
+  .square.legal-move::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+  }
+  .square.legal-capture::after {
+    content: '';
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 4px solid rgba(0, 0, 0, 0.2);
+    background: transparent;
+  }
+  .square.last-move { background: #cdd26a !important; }
+  .square.check { background: #e74c3c !important; }
+
+  .square:hover { filter: brightness(1.1); }
+
+  .piece {
+    pointer-events: none;
+    filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.4));
+    line-height: 1;
+  }
+
+  #side-panel {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 20px;
+    width: 280px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #side-panel h3 {
+    color: #e2b96f;
+    margin-bottom: 12px;
+    font-size: 1rem;
+  }
+
+  #move-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 360px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    color: #ccc;
+  }
+
+  #move-list .move-row {
+    display: flex;
+    gap: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  #move-list .move-row:nth-child(odd) { background: rgba(255,255,255,0.03); }
+  #move-list .move-num { color: #666; min-width: 30px; }
+  #move-list .move-white { min-width: 70px; }
+  #move-list .move-black { min-width: 70px; }
+
+  #status-bar {
+    text-align: center;
+    padding: 12px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #e2b96f;
+    min-height: 48px;
+  }
+
+  #resign-btn {
+    margin-top: 16px;
+    padding: 10px;
+    width: 100%;
+    background: #c0392b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: bold;
+  }
+
+  #resign-btn:hover { background: #e74c3c; }
+
+  .waiting-spinner {
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 3px solid #333;
+    border-top-color: #e2b96f;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Promotion modal */
+  #promotion-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #promotion-modal.show { display: flex; }
+
+  .promotion-choices {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    gap: 16px;
+  }
+
+  .promotion-choices .promo-piece {
+    width: 70px; height: 70px;
+    font-size: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0d9b5;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .promotion-choices .promo-piece:hover { transform: scale(1.15); }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>Chess Online</h1>
+  <p>실시간 온라인 체스 게임</p>
+  <div>
+    <input type="text" id="name-input" placeholder="닉네임을 입력하세요" maxlength="20">
+    <button id="join-btn" onclick="joinGame()">게임 시작</button>
+  </div>
+  <p id="lobby-status" style="margin-top: 20px;"></p>
+</div>
+
+<div id="game-container">
+  <div class="game-panel">
+    <div class="player-bar" id="top-player">
+      <div class="dot"></div>
+      <span id="top-name">Opponent</span>
+    </div>
+    <div id="board"></div>
+    <div class="player-bar" id="bottom-player">
+      <div class="dot"></div>
+      <span id="bottom-name">You</span>
+    </div>
+  </div>
+  <div id="side-panel">
+    <div id="status-bar">White's turn</div>
+    <h3>Moves</h3>
+    <div id="move-list"></div>
+    <button id="resign-btn" onclick="resign()">기권</button>
+  </div>
+</div>
+
+<div id="promotion-modal">
+  <div class="promotion-choices" id="promotion-choices"></div>
+</div>
+
+<script>
+const PIECES = {
+  white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
+  black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' },
+};
+
+const COL_NAMES = 'abcdefgh';
+
+let ws;
+let myColor = null;
+let myName = '';
+let opponentName = '';
+let board = null;
+let selectedSquare = null;
+let legalMoves = [];
+let currentTurn = 'white';
+let gameActive = false;
+let lastMove = null;
+let moveHistory = [];
+let pendingPromotion = null;
+
+function joinGame() {
+  myName = document.getElementById('name-input').value.trim() || 'Player';
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', name: myName }));
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleMessage(msg);
+  };
+
+  ws.onclose = () => {
+    if (gameActive) {
+      document.getElementById('status-bar').textContent = '연결이 끊어졌습니다';
+      gameActive = false;
+    }
+  };
+
+  document.getElementById('join-btn').disabled = true;
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'waiting':
+      document.getElementById('lobby-status').innerHTML =
+        '<span class="waiting-spinner"></span> 상대를 기다리는 중...';
+      break;
+
+    case 'gameStart':
+      myColor = msg.color;
+      opponentName = msg.opponentName;
+      board = msg.board;
+      gameActive = true;
+      currentTurn = 'white';
+      moveHistory = [];
+      lastMove = null;
+      showGame();
+      renderBoard();
+      updateStatus();
+      break;
+
+    case 'moveMade':
+      board = msg.board;
+      currentTurn = msg.turn;
+      lastMove = { from: msg.from, to: msg.to };
+      recordMove(msg);
+      renderBoard();
+      updateStatus(msg.status);
+      break;
+
+    case 'legalMoves':
+      legalMoves = msg.moves;
+      showLegalMoves();
+      break;
+
+    case 'gameOver':
+      gameActive = false;
+      const winMsg = msg.winner === myColor ? '승리!' : '패배';
+      const reason = msg.reason === 'resign' ? ' (기권)' : msg.reason === 'disconnect' ? ' (상대 접속 종료)' : '';
+      document.getElementById('status-bar').textContent = `${winMsg}${reason}`;
+      break;
+
+    case 'error':
+      console.log('Error:', msg.message);
+      break;
+  }
+}
+
+function showGame() {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('game-container').style.display = 'flex';
+
+  if (myColor === 'white') {
+    document.getElementById('top-name').textContent = opponentName + ' (Black)';
+    document.getElementById('bottom-name').textContent = myName + ' (White)';
+  } else {
+    document.getElementById('top-name').textContent = opponentName + ' (White)';
+    document.getElementById('bottom-name').textContent = myName + ' (Black)';
+  }
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  const rows = myColor === 'white' ? [0,1,2,3,4,5,6,7] : [7,6,5,4,3,2,1,0];
+  const cols = myColor === 'white' ? [0,1,2,3,4,5,6,7] : [7,6,5,4,3,2,1,0];
+
+  for (const row of rows) {
+    for (const col of cols) {
+      const sq = document.createElement('div');
+      const isLight = (row + col) % 2 === 0;
+      sq.className = `square ${isLight ? 'light' : 'dark'}`;
+      sq.dataset.row = row;
+      sq.dataset.col = col;
+
+      // Last move highlight
+      if (lastMove) {
+        if ((row === lastMove.from.row && col === lastMove.from.col) ||
+            (row === lastMove.to.row && col === lastMove.to.col)) {
+          sq.classList.add('last-move');
+        }
+      }
+
+      // Selected
+      if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
+        sq.classList.add('selected');
+      }
+
+      // Check highlight
+      const piece = board[row][col];
+      if (piece && piece.type === 'king' && piece.color === currentTurn) {
+        // We'll add check class from status update
+      }
+
+      if (piece) {
+        const span = document.createElement('span');
+        span.className = 'piece';
+        span.textContent = PIECES[piece.color][piece.type];
+        sq.appendChild(span);
+      }
+
+      sq.addEventListener('click', () => onSquareClick(row, col));
+      boardEl.appendChild(sq);
+    }
+  }
+
+  // Show legal move indicators
+  if (selectedSquare && legalMoves.length > 0) {
+    showLegalMoves();
+  }
+}
+
+function showLegalMoves() {
+  for (const move of legalMoves) {
+    const sq = document.querySelector(`.square[data-row="${move.row}"][data-col="${move.col}"]`);
+    if (sq) {
+      if (board[move.row][move.col]) {
+        sq.classList.add('legal-capture');
+      } else {
+        sq.classList.add('legal-move');
+      }
+    }
+  }
+}
+
+function onSquareClick(row, col) {
+  if (!gameActive || currentTurn !== myColor) return;
+
+  // If a square is selected and this is a legal move target
+  if (selectedSquare) {
+    const isLegal = legalMoves.some(m => m.row === row && m.col === col);
+    if (isLegal) {
+      // Check for promotion
+      const piece = board[selectedSquare.row][selectedSquare.col];
+      if (piece.type === 'pawn' && (row === 0 || row === 7)) {
+        pendingPromotion = { from: selectedSquare, to: { row, col } };
+        showPromotionModal();
+        return;
+      }
+      sendMove(selectedSquare, { row, col });
+      selectedSquare = null;
+      legalMoves = [];
+      renderBoard();
+      return;
+    }
+  }
+
+  // Select own piece
+  const piece = board[row][col];
+  if (piece && piece.color === myColor) {
+    selectedSquare = { row, col };
+    legalMoves = [];
+    renderBoard();
+    ws.send(JSON.stringify({ type: 'getLegalMoves', row, col }));
+  } else {
+    selectedSquare = null;
+    legalMoves = [];
+    renderBoard();
+  }
+}
+
+function sendMove(from, to, promotion) {
+  ws.send(JSON.stringify({ type: 'move', from, to, promotion }));
+}
+
+function showPromotionModal() {
+  const modal = document.getElementById('promotion-modal');
+  const choices = document.getElementById('promotion-choices');
+  modal.classList.add('show');
+  choices.innerHTML = '';
+
+  const pieces = ['queen', 'rook', 'bishop', 'knight'];
+  for (const p of pieces) {
+    const div = document.createElement('div');
+    div.className = 'promo-piece';
+    div.textContent = PIECES[myColor][p];
+    div.addEventListener('click', () => {
+      modal.classList.remove('show');
+      sendMove(pendingPromotion.from, pendingPromotion.to, p);
+      selectedSquare = null;
+      legalMoves = [];
+      pendingPromotion = null;
+      renderBoard();
+    });
+    choices.appendChild(div);
+  }
+}
+
+function updateStatus(status) {
+  const bar = document.getElementById('status-bar');
+  const turnName = currentTurn === myColor ? '내 차례' : '상대 차례';
+
+  if (status === 'checkmate') {
+    const winner = currentTurn === myColor ? '패배 (체크메이트)' : '승리! (체크메이트)';
+    bar.textContent = winner;
+    gameActive = false;
+  } else if (status === 'stalemate') {
+    bar.textContent = '무승부 (스테일메이트)';
+    gameActive = false;
+  } else if (status === 'check') {
+    bar.textContent = `${turnName} - 체크!`;
+    highlightCheck();
+  } else {
+    bar.textContent = turnName;
+  }
+
+  // Update player bar active states
+  const topIsMe = myColor === 'black';
+  document.getElementById('top-player').classList.toggle('active',
+    topIsMe ? currentTurn === myColor : currentTurn !== myColor);
+  document.getElementById('bottom-player').classList.toggle('active',
+    topIsMe ? currentTurn !== myColor : currentTurn === myColor);
+}
+
+function highlightCheck() {
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      if (board[r][c]?.type === 'king' && board[r][c]?.color === currentTurn) {
+        const sq = document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`);
+        if (sq) sq.classList.add('check');
+      }
+    }
+  }
+}
+
+function recordMove(msg) {
+  moveHistory.push(msg);
+  const moveList = document.getElementById('move-list');
+
+  const fromNotation = COL_NAMES[msg.from.col] + (8 - msg.from.row);
+  const toNotation = COL_NAMES[msg.to.col] + (8 - msg.to.row);
+  const moveText = `${fromNotation}${toNotation}`;
+
+  const moveNum = Math.ceil(msg.moveCount / 2);
+
+  if (msg.moveCount % 2 === 1) {
+    // White's move
+    const row = document.createElement('div');
+    row.className = 'move-row';
+    row.innerHTML = `<span class="move-num">${moveNum}.</span><span class="move-white">${moveText}</span><span class="move-black"></span>`;
+    moveList.appendChild(row);
+  } else {
+    // Black's move
+    const lastRow = moveList.lastElementChild;
+    if (lastRow) {
+      lastRow.querySelector('.move-black').textContent = moveText;
+    }
+  }
+
+  moveList.scrollTop = moveList.scrollHeight;
+}
+
+function resign() {
+  if (!gameActive) return;
+  if (confirm('정말 기권하시겠습니까?')) {
+    ws.send(JSON.stringify({ type: 'resign' }));
+  }
+}
+
+// Enter key to join
+document.getElementById('name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinGame();
+});
+</script>
+</body>
+</html>
