@@ -44,13 +44,24 @@ def safe_input(prompt=""):
 #  기물 유니코드 & 색상
 # ═══════════════════════════════════════════
 
+# ASCII 약자 — 모든 터미널에서 폭이 일정하게 정렬됨
 PIECES = {
-    ('king',   'white'): '♔', ('queen',  'white'): '♕',
-    ('rook',   'white'): '♖', ('bishop', 'white'): '♗',
-    ('knight', 'white'): '♘', ('pawn',   'white'): '♙',
-    ('king',   'black'): '♚', ('queen',  'black'): '♛',
-    ('rook',   'black'): '♜', ('bishop', 'black'): '♝',
-    ('knight', 'black'): '♞', ('pawn',   'black'): '♟',
+    ('king',   'white'): 'K', ('queen',  'white'): 'Q',
+    ('rook',   'white'): 'R', ('bishop', 'white'): 'B',
+    ('knight', 'white'): 'N', ('pawn',   'white'): 'P',
+    ('king',   'black'): 'k', ('queen',  'black'): 'q',
+    ('rook',   'black'): 'r', ('bishop', 'black'): 'b',
+    ('knight', 'black'): 'n', ('pawn',   'black'): 'p',
+}
+
+# 유니코드 기물 (--unicode 옵션용)
+PIECES_UNICODE = {
+    ('king',   'white'): 'K', ('queen',  'white'): 'Q',
+    ('rook',   'white'): 'R', ('bishop', 'white'): 'B',
+    ('knight', 'white'): 'N', ('pawn',   'white'): 'P',
+    ('king',   'black'): 'k', ('queen',  'black'): 'q',
+    ('rook',   'black'): 'r', ('bishop', 'black'): 'b',
+    ('knight', 'black'): 'n', ('pawn',   'black'): 'p',
 }
 
 # ANSI 색상 코드
@@ -403,49 +414,56 @@ class TerminalChessUI:
         return ' '.join(symbols) + f"  (+{total})" if total > 0 else ' '.join(symbols)
 
     def render_board(self):
-        """체스판 렌더링"""
+        """체스판 렌더링 — 넓은 칸, ASCII 기물, 깔끔한 정렬"""
         board = self.engine.board
         last = self.engine.last_move
         legal_targets = {m['to'] for m in self.legal_moves}
         capture_targets = {m['to'] for m in self.legal_moves if m['capture']}
 
+        # 칸 너비: 내부 8칸 (공백 포함)
+        CW = 8  # cell width (내부)
         lines = []
         lines.append("")
 
         # 잡힌 흑 기물 (백이 잡은 것)
         cap_black = self.render_captured('black')
         if cap_black:
-            lines.append(f"  잡은 기물: {cap_black}")
+            lines.append(f"    잡은 기물: {cap_black}")
         lines.append("")
 
-        # 열 레이블
-        if self.use_color:
-            lines.append(f"     {'    '.join(list('ａｂｃｄｅｆｇｈ'))}")
-        else:
-            lines.append(f"      a    b    c    d    e    f    g    h")
+        # 열 레이블 (위)
+        col_labels = "      "
+        for ch in "abcdefgh":
+            col_labels += ch.center(CW) + " "
+        lines.append(col_labels)
+        lines.append("")
 
-        lines.append(f"   ┌{'─────┬' * 7}─────┐")
+        # 상단 테두리
+        top = "    +" + (("-" * CW) + "+") * 8
+        lines.append(top)
 
         for row in range(8):
             rank = str(8 - row)
-            line = f" {rank} │"
+
+            # 기물 행 (칸 내부 가운데 줄)
+            line = f"  {rank} |"
             for col in range(8):
                 piece = board[row][col]
                 is_light = (row + col) % 2 == 0
-
-                # 칸 배경 결정
                 is_selected = self.selected == (row, col)
                 is_legal = (row, col) in legal_targets
                 is_capture = (row, col) in capture_targets
                 is_last = last and ((row,col) == last['from'] or (row,col) == last['to'])
 
+                # 기물 표시 문자열 결정
                 if piece:
-                    symbol = PIECES.get((piece['type'], piece['color']), '?')
+                    sym = PIECES.get((piece['type'], piece['color']), '?')
                 else:
-                    symbol = ' '
+                    sym = ''
 
+                # 칸 내용 구성
                 if self.use_color:
-                    # 배경색 결정
+                    # 배경색
                     if is_selected:
                         bg = Color.BG_HIGHLIGHT
                     elif is_capture:
@@ -459,48 +477,53 @@ class TerminalChessUI:
                     else:
                         bg = Color.BG_DARK
 
-                    # 기물 색상
                     if piece:
-                        fg = Color.WHITE if piece['color'] == 'white' else '\033[30m'
+                        fg = Color.BOLD + Color.WHITE if piece['color'] == 'white' else Color.BOLD + '\033[30m'
+                        content = f"({sym})" if is_capture else f" {sym} "
+                        inner = content.center(CW)
+                        cell = f"{bg}{fg}{inner}{Color.RESET}"
+                    elif is_legal:
+                        inner = " .. ".center(CW)
+                        cell = f"{bg}{inner}{Color.RESET}"
                     else:
-                        fg = ''
-
-                    if is_legal and not piece:
-                        # 이동 가능 빈칸에 점 표시
-                        cell = f"{bg} {fg} · {Color.RESET}"
-                    else:
-                        cell = f"{bg} {fg} {symbol} {Color.RESET}"
+                        inner = " " * CW
+                        cell = f"{bg}{inner}{Color.RESET}"
                 else:
-                    # 색상 미지원 터미널
-                    if is_selected:
-                        cell = f"[{symbol}] "
+                    # 색상 미지원
+                    if is_selected and piece:
+                        content = f"[{sym}]"
+                    elif is_capture and piece:
+                        content = f"({sym})"
                     elif is_legal and not piece:
-                        cell = f" ·  "
-                    elif is_capture:
-                        cell = f"({symbol}) "
+                        content = ".."
+                    elif piece:
+                        # 밝은칸/어두운칸 구분
+                        if is_light:
+                            content = f" {sym} "
+                        else:
+                            content = f":{sym}:"
                     else:
-                        cell = f" {symbol}   "
+                        content = "   " if is_light else ":::"
 
-                line += cell + "│"
+                    cell = content.center(CW)
+
+                line += cell + "|"
 
             line += f" {rank}"
             lines.append(line)
 
-            if row < 7:
-                lines.append(f"   ├{'─────┼' * 7}─────┤")
-            else:
-                lines.append(f"   └{'─────┴' * 7}─────┘")
+            # 행 구분선
+            sep = "    +" + (("-" * CW) + "+") * 8
+            lines.append(sep)
 
-        if self.use_color:
-            lines.append(f"     {'    '.join(list('ａｂｃｄｅｆｇｈ'))}")
-        else:
-            lines.append(f"      a    b    c    d    e    f    g    h")
+        # 열 레이블 (아래)
+        lines.append(col_labels)
 
         # 잡힌 백 기물 (흑이 잡은 것)
         lines.append("")
         cap_white = self.render_captured('white')
         if cap_white:
-            lines.append(f"  잡은 기물: {cap_white}")
+            lines.append(f"    잡은 기물: {cap_white}")
 
         return '\n'.join(lines)
 
@@ -508,36 +531,42 @@ class TerminalChessUI:
         """이동 기록 표시"""
         history = self.engine.move_history
         if not history:
-            return "  아직 이동 없음"
+            return "      (no moves yet)"
         lines = []
         for i in range(0, len(history), 2):
             move_num = i // 2 + 1
             white_move = history[i]['notation'] if i < len(history) else ""
             black_move = history[i+1]['notation'] if i+1 < len(history) else ""
-            lines.append(f"  {move_num:>3}. {white_move:<8} {black_move}")
-        # 마지막 10수만 표시
+            lines.append(f"      {move_num:>3}. {white_move:<10} {black_move}")
         if len(lines) > 10:
-            lines = ['  ...'] + lines[-10:]
+            lines = ['      ...'] + lines[-10:]
         return '\n'.join(lines)
 
     def render_status(self):
         """게임 상태 표시"""
         e = self.engine
-        turn_text = "⚪ 백(White)" if e.turn == 'white' else "⚫ 흑(Black)"
+        turn_text = "WHITE (uppercase)" if e.turn == 'white' else "BLACK (lowercase)"
         status_text = ""
 
         if e.status == 'checkmate':
-            winner = "⚫ 흑(Black)" if e.turn == 'white' else "⚪ 백(White)"
-            # 패배한 쪽이 현재 턴이므로, 이긴 쪽은 반대
-            winner = "⚪ 백" if e.turn == 'black' else "⚫ 흑"
-            status_text = f"{Color.RED}{Color.BOLD}  ♚ 체크메이트! {winner} 승리!{Color.RESET}" if self.use_color else f"  ♚ 체크메이트! {winner} 승리!"
+            winner = "WHITE" if e.turn == 'black' else "BLACK"
+            if self.use_color:
+                status_text = f"    {Color.RED}{Color.BOLD}*** CHECKMATE! {winner} wins! ***{Color.RESET}"
+            else:
+                status_text = f"    *** CHECKMATE! {winner} wins! ***"
         elif e.status == 'stalemate':
-            status_text = f"{Color.YELLOW}  ½ 스테일메이트! 무승부!{Color.RESET}" if self.use_color else "  ½ 스테일메이트! 무승부!"
+            if self.use_color:
+                status_text = f"    {Color.YELLOW}*** STALEMATE! Draw! ***{Color.RESET}"
+            else:
+                status_text = "    *** STALEMATE! Draw! ***"
         elif e.status == 'check':
-            status_text = f"{Color.RED}{Color.BOLD}  ⚠ 체크!{Color.RESET}" if self.use_color else "  ⚠ 체크!"
+            if self.use_color:
+                status_text = f"    {Color.RED}{Color.BOLD}!!! CHECK !!!{Color.RESET}"
+            else:
+                status_text = "    !!! CHECK !!!"
 
         lines = [
-            f"  현재 차례: {turn_text}",
+            f"    Turn: {turn_text}",
         ]
         if status_text:
             lines.append(status_text)
@@ -545,62 +574,70 @@ class TerminalChessUI:
 
     def render(self):
         """전체 화면 렌더링"""
+        W = 82  # 전체 너비
         self.clear_screen()
-        print(f"""
-{Color.BOLD}  ♔ 터미널 체스 ♚{Color.RESET}
-{'═' * 60}""" if self.use_color else f"""
-  ♔ 터미널 체스 ♚
-{'=' * 60}""")
+        if self.use_color:
+            print(f"\n{Color.BOLD}    TERMINAL CHESS{Color.RESET}")
+            print(f"    {'=' * (W - 4)}")
+        else:
+            print(f"\n    TERMINAL CHESS")
+            print(f"    {'=' * (W - 4)}")
+        print(f"    White = UPPERCASE (K Q R B N P)")
+        print(f"    Black = lowercase (k q r b n p)")
         print(self.render_board())
         print()
         print(self.render_status())
         print()
-        print(f"{'─' * 60}")
-        print(f"  기보:")
+        print(f"    {'-' * (W - 4)}")
+        print(f"    기보:")
         print(self.render_move_history())
-        print(f"{'─' * 60}")
+        print(f"    {'-' * (W - 4)}")
         if self.message:
             if self.use_color:
-                print(f"\n  {Color.YELLOW}💬 {self.message}{Color.RESET}")
+                print(f"\n    {Color.YELLOW}{self.message}{Color.RESET}")
             else:
-                print(f"\n  💬 {self.message}")
+                print(f"\n    {self.message}")
         print()
 
     def show_help(self):
         print(f"""
-  ┌──────────────────────────────────────────────────┐
-  │  📖 도움말                                       │
-  │──────────────────────────────────────────────────│
-  │                                                  │
-  │  이동하기:  e2 e4   (출발 도착)                   │
-  │            e2e4    (붙여써도 됨)                  │
-  │            e7e8q   (프로모션: q/r/b/n)            │
-  │                                                  │
-  │  기물 선택: e2      (합법수 표시)                  │
-  │                                                  │
-  │  캐슬링:   e1 g1   (킹사이드)                     │
-  │            e1 c1   (퀸사이드)                     │
-  │                                                  │
-  │  기타:     undo    (되돌리기 - 미구현)            │
-  │            resign  (기권)                        │
-  │            help    (도움말)                       │
-  │            quit    (종료)                        │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+    +----------------------------------------------------------+
+    |  HELP                                                    |
+    +----------------------------------------------------------+
+    |                                                          |
+    |  Move:       e2 e4    (from to)                          |
+    |              e2e4     (no space OK)                       |
+    |              e7e8q    (promotion: q/r/b/n)               |
+    |                                                          |
+    |  Select:     e2       (show legal moves)                 |
+    |                                                          |
+    |  Castling:   e1 g1    (king-side)                        |
+    |              e1 c1    (queen-side)                       |
+    |                                                          |
+    |  Commands:   resign   (give up)                          |
+    |              help     (this screen)                      |
+    |              quit     (exit)                              |
+    |                                                          |
+    |  Board:      UPPERCASE = White  (K Q R B N P)            |
+    |              lowercase = Black  (k q r b n p)            |
+    |              ..       = legal move target                 |
+    |              :::      = dark square (no color mode)       |
+    |                                                          |
+    +----------------------------------------------------------+
 """)
-        input("  Enter를 누르면 계속...")
+        input("    Enter to continue...")
 
     def ask_promotion(self):
         """프로모션 기물 선택"""
         while True:
-            print(f"\n  프로모션! 기물을 선택하세요:")
-            print(f"  q = ♛ 퀸  |  r = ♜ 룩  |  b = ♝ 비숍  |  n = ♞ 나이트")
-            choice = safe_input(f"  선택 [q]: ").strip().lower()
+            print(f"\n    Promotion! Choose piece:")
+            print(f"    q = Queen  |  r = Rook  |  b = Bishop  |  n = Knight")
+            choice = safe_input(f"    Choice [q]: ").strip().lower()
             if choice in ('', 'q'): return 'queen'
             if choice == 'r': return 'rook'
             if choice == 'b': return 'bishop'
             if choice == 'n': return 'knight'
-            print("  잘못된 입력! q, r, b, n 중 하나를 입력하세요.")
+            print("    Invalid! Enter q, r, b, or n.")
 
     def parse_input(self, user_input):
         """사용자 입력 파싱"""
@@ -640,28 +677,28 @@ class TerminalChessUI:
 
     def run(self):
         """메인 게임 루프"""
-        self.message = "도움말: help 입력  |  이동: 'e2 e4' 형식으로 입력"
+        self.message = "Type 'help' for commands  |  Move: 'e2 e4'"
 
         while True:
             self.render()
 
             # 게임 종료 확인
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("    New game(n) / Quit(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
                     self.legal_moves = []
-                    self.message = "새 게임 시작!"
+                    self.message = "New game!"
                     continue
                 break
 
             # 입력 받기
-            turn_symbol = "⚪" if self.engine.turn == 'white' else "⚫"
+            turn_label = "WHITE" if self.engine.turn == 'white' else "BLACK"
             try:
-                user_input = safe_input(f"  {turn_symbol} 입력: ").strip()
+                user_input = safe_input(f"    [{turn_label}] > ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("\n  게임을 종료합니다. 👋")
+                print("\n    Goodbye!")
                 break
 
             if not user_input:
@@ -673,21 +710,21 @@ class TerminalChessUI:
             action, data, extra = self.parse_input(user_input)
 
             if action == 'quit':
-                print("\n  게임을 종료합니다. 👋")
+                print("\n    Goodbye!")
                 break
 
             elif action == 'help':
                 self.show_help()
 
             elif action == 'resign':
-                winner = "⚫ 흑" if self.engine.turn == 'white' else "⚪ 백"
-                self.engine.status = 'checkmate'  # 종료 트리거
-                self.message = f"기권! {winner} 승리!"
+                winner = "BLACK" if self.engine.turn == 'white' else "WHITE"
+                self.engine.status = 'checkmate'
+                self.message = f"Resigned! {winner} wins!"
 
             elif action == 'select':
                 pos = data
                 if pos is None:
-                    self.message = "잘못된 좌표입니다. (예: e2)"
+                    self.message = "Invalid square. (e.g. e2)"
                     continue
                 piece = self.engine.board[pos[0]][pos[1]]
                 if piece and piece['color'] == self.engine.turn:
@@ -695,11 +732,11 @@ class TerminalChessUI:
                     self.legal_moves = self.engine.get_legal_moves(pos[0], pos[1])
                     if self.legal_moves:
                         targets = [self.pos_to_notation(*m['to']) for m in self.legal_moves]
-                        self.message = f"{self.pos_to_notation(*pos)} 선택 → 갈 수 있는 곳: {', '.join(targets)}"
+                        self.message = f"Selected {self.pos_to_notation(*pos)} -> can go: {', '.join(targets)}"
                     else:
-                        self.message = f"{self.pos_to_notation(*pos)}: 갈 수 있는 곳이 없습니다"
+                        self.message = f"{self.pos_to_notation(*pos)}: no legal moves"
                 else:
-                    self.message = "자기 기물을 선택하세요"
+                    self.message = "Select your own piece"
                     self.selected = None
                     self.legal_moves = []
 
@@ -707,7 +744,6 @@ class TerminalChessUI:
                 from_pos, to_pos = data
                 promotion = extra
 
-                # 프로모션 체크
                 piece = self.engine.board[from_pos[0]][from_pos[1]]
                 if piece and piece['type'] == 'pawn' and (to_pos[0] == 0 or to_pos[0] == 7):
                     if not promotion:
@@ -719,13 +755,13 @@ class TerminalChessUI:
                 success, msg = self.engine.make_move(from_pos, to_pos, promotion or 'queen')
                 if success:
                     last = self.engine.move_history[-1]
-                    self.message = f"✅ {last['notation']}"
+                    self.message = f"OK: {last['notation']}"
                     self.selected = None
                     self.legal_moves = []
                 else:
-                    self.message = f"❌ {msg}"
+                    self.message = f"ERROR: {msg}"
             else:
-                self.message = "❌ 잘못된 입력. 'help'로 도움말을 확인하세요"
+                self.message = "Invalid input. Type 'help' for commands"
 
 
 # ═══════════════════════════════════════════
@@ -869,24 +905,24 @@ class TerminalChessAI(TerminalChessUI):
         self.ai_depth = depth
 
     def run(self):
-        self.message = f"AI 대전 모드! (AI={self.ai_color}, 깊이={self.ai_depth})"
+        self.message = f"AI mode (AI={self.ai_color}, depth={self.ai_depth})"
 
         while True:
             self.render()
 
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("    New game(n) / Quit(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
                     self.legal_moves = []
-                    self.message = "새 게임 시작!"
+                    self.message = "New game!"
                     continue
                 break
 
             # AI 차례
             if self.engine.turn == self.ai_color:
-                self.message = "🤖 AI 생각 중..."
+                self.message = "AI thinking..."
                 self.render()
 
                 ai = SimpleAI(self.engine, self.ai_color, self.ai_depth)
@@ -896,20 +932,20 @@ class TerminalChessAI(TerminalChessUI):
                     success, _ = self.engine.make_move(best['from'], best['to'])
                     if success:
                         last = self.engine.move_history[-1]
-                        self.message = f"🤖 AI: {last['notation']}"
+                        self.message = f"AI played: {last['notation']}"
                         self.selected = None
                         self.legal_moves = []
                     continue
                 else:
-                    self.message = "AI가 수를 찾을 수 없습니다"
+                    self.message = "AI cannot find a move"
                     break
 
             # 사람 차례
-            turn_symbol = "⚪" if self.engine.turn == 'white' else "⚫"
+            turn_label = "WHITE" if self.engine.turn == 'white' else "BLACK"
             try:
-                user_input = safe_input(f"  {turn_symbol} 입력: ").strip()
+                user_input = safe_input(f"    [{turn_label}] > ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("\n  게임을 종료합니다. 👋")
+                print("\n    Goodbye!")
                 break
 
             if not user_input:
@@ -925,12 +961,12 @@ class TerminalChessAI(TerminalChessUI):
             elif action == 'help':
                 self.show_help()
             elif action == 'resign':
-                self.message = "기권! AI 승리!"
+                self.message = "Resigned! AI wins!"
                 self.engine.status = 'checkmate'
             elif action == 'select':
                 pos = data
                 if pos is None:
-                    self.message = "잘못된 좌표"
+                    self.message = "Invalid square"
                     continue
                 piece = self.engine.board[pos[0]][pos[1]]
                 if piece and piece['color'] == self.engine.turn:
@@ -938,11 +974,11 @@ class TerminalChessAI(TerminalChessUI):
                     self.legal_moves = self.engine.get_legal_moves(pos[0], pos[1])
                     if self.legal_moves:
                         targets = [self.pos_to_notation(*m['to']) for m in self.legal_moves]
-                        self.message = f"{self.pos_to_notation(*pos)} 선택 → {', '.join(targets)}"
+                        self.message = f"Selected {self.pos_to_notation(*pos)} -> {', '.join(targets)}"
                     else:
-                        self.message = f"갈 수 있는 곳이 없습니다"
+                        self.message = "No legal moves"
                 else:
-                    self.message = "자기 기물을 선택하세요"
+                    self.message = "Select your own piece"
                     self.selected = None
                     self.legal_moves = []
             elif action == 'move':
@@ -958,13 +994,13 @@ class TerminalChessAI(TerminalChessUI):
                 success, msg = self.engine.make_move(from_pos, to_pos, promotion or 'queen')
                 if success:
                     last = self.engine.move_history[-1]
-                    self.message = f"✅ {last['notation']}"
+                    self.message = f"OK: {last['notation']}"
                     self.selected = None
                     self.legal_moves = []
                 else:
-                    self.message = f"❌ {msg}"
+                    self.message = f"ERROR: {msg}"
             else:
-                self.message = "❌ 잘못된 입력"
+                self.message = "Invalid input. Type 'help'"
 
 
 # ═══════════════════════════════════════════
@@ -1043,39 +1079,37 @@ class NetworkChess(TerminalChessUI):
     def render_status(self):
         """상태 표시에 네트워크 정보 추가"""
         base = super().render_status()
-        my_label = "⚪ 백" if self.my_color == 'white' else "⚫ 흑"
-        opp_label = "⚫ 흑" if self.my_color == 'white' else "⚪ 백"
-        net_info = f"  나: {my_label} ({self.opponent_name} 과 대전 중)"
+        my_label = "WHITE" if self.my_color == 'white' else "BLACK"
+        net_info = f"    You: {my_label} (vs {self.opponent_name})"
         return f"{net_info}\n{base}"
 
     def run(self):
         my_color = self.my_color
-        self.message = f"🌐 {self.opponent_name}과 대전 시작! (나={my_color})"
+        self.message = f"Online game vs {self.opponent_name} (you={my_color})"
 
         while True:
             self.render()
 
             if self.disconnected:
-                print(f"\n  ⚠️  상대방 연결이 끊어졌습니다.")
-                input("  Enter를 누르면 종료...")
+                print(f"\n    !!! Opponent disconnected !!!")
+                input("    Press Enter to exit...")
                 break
 
             if self.engine.status in ('checkmate', 'stalemate'):
-                choice = safe_input("  새 게임(n) / 종료(q): ").strip().lower()
+                choice = safe_input("    New game(n) / Quit(q): ").strip().lower()
                 if choice == 'n':
                     self.engine = ChessEngine()
                     self.selected = None
                     self.legal_moves = []
-                    self.message = "새 게임! (상대방은 수동 재시작 필요)"
+                    self.message = "New game!"
                     continue
                 break
 
             # 상대 차례: 수신 대기
             if self.engine.turn != my_color:
-                self.message = f"⏳ {self.opponent_name}의 차례... (기다리는 중)"
+                self.message = f"Waiting for {self.opponent_name}..."
                 self.render()
 
-                # 상대 수 대기 (폴링)
                 while True:
                     if self.disconnected:
                         break
@@ -1085,7 +1119,7 @@ class NetworkChess(TerminalChessUI):
 
                     if move_data:
                         if move_data.get('type') == 'resign':
-                            self.message = f"🏳️ {self.opponent_name}이 기권했습니다! 당신의 승리!"
+                            self.message = f"{self.opponent_name} resigned! You win!"
                             self.engine.status = 'checkmate'
                             break
 
@@ -1095,22 +1129,22 @@ class NetworkChess(TerminalChessUI):
                         success, msg = self.engine.make_move(from_pos, to_pos, promotion)
                         if success:
                             last = self.engine.move_history[-1]
-                            self.message = f"📨 {self.opponent_name}: {last['notation']}"
+                            self.message = f"{self.opponent_name}: {last['notation']}"
                         else:
-                            self.message = f"⚠️ 동기화 오류: {msg}"
+                            self.message = f"Sync error: {msg}"
                         break
 
                     import time
                     time.sleep(0.1)
                 continue
 
-            # 내 차례: 입력 받기
-            turn_symbol = "⚪" if my_color == 'white' else "⚫"
+            # 내 차례
+            turn_label = "WHITE" if my_color == 'white' else "BLACK"
             try:
-                user_input = safe_input(f"  {turn_symbol} 내 차례: ").strip()
+                user_input = safe_input(f"    [{turn_label}] > ").strip()
             except (EOFError, KeyboardInterrupt):
                 self._send({'type': 'resign'})
-                print("\n  기권합니다. 👋")
+                print("\n    Resigned. Goodbye!")
                 break
 
             if not user_input:
@@ -1123,7 +1157,7 @@ class NetworkChess(TerminalChessUI):
 
             if action == 'quit':
                 self._send({'type': 'resign'})
-                print("\n  기권 후 종료합니다. 👋")
+                print("\n    Resigned. Goodbye!")
                 break
 
             elif action == 'help':
@@ -1131,13 +1165,13 @@ class NetworkChess(TerminalChessUI):
 
             elif action == 'resign':
                 self._send({'type': 'resign'})
-                self.message = "기권했습니다!"
+                self.message = "You resigned!"
                 self.engine.status = 'checkmate'
 
             elif action == 'select':
                 pos = data
                 if pos is None:
-                    self.message = "잘못된 좌표"
+                    self.message = "Invalid square"
                     continue
                 piece = self.engine.board[pos[0]][pos[1]]
                 if piece and piece['color'] == my_color:
@@ -1145,11 +1179,11 @@ class NetworkChess(TerminalChessUI):
                     self.legal_moves = self.engine.get_legal_moves(pos[0], pos[1])
                     if self.legal_moves:
                         targets = [self.pos_to_notation(*m['to']) for m in self.legal_moves]
-                        self.message = f"{self.pos_to_notation(*pos)} 선택 → {', '.join(targets)}"
+                        self.message = f"Selected {self.pos_to_notation(*pos)} -> {', '.join(targets)}"
                     else:
-                        self.message = "갈 수 있는 곳이 없습니다"
+                        self.message = "No legal moves"
                 else:
-                    self.message = "자기 기물을 선택하세요"
+                    self.message = "Select your own piece"
                     self.selected = None
                     self.legal_moves = []
 
@@ -1167,7 +1201,6 @@ class NetworkChess(TerminalChessUI):
 
                 success, msg = self.engine.make_move(from_pos, to_pos, promotion or 'queen')
                 if success:
-                    # 상대에게 수 전송
                     self._send({
                         'type': 'move',
                         'from': list(from_pos),
@@ -1175,13 +1208,13 @@ class NetworkChess(TerminalChessUI):
                         'promotion': promotion or 'queen'
                     })
                     last = self.engine.move_history[-1]
-                    self.message = f"✅ {last['notation']} → 상대 차례"
+                    self.message = f"OK: {last['notation']}"
                     self.selected = None
                     self.legal_moves = []
                 else:
-                    self.message = f"❌ {msg}"
+                    self.message = f"ERROR: {msg}"
             else:
-                self.message = "❌ 잘못된 입력"
+                self.message = "Invalid input. Type 'help'"
 
         try:
             self.conn.close()
@@ -1206,26 +1239,27 @@ def run_server(host='0.0.0.0', port=5555, name='호스트'):
         my_ip = host
 
     print(f"""
-  ┌──────────────────────────────────────────────────┐
-  │  🌐 서버 모드 — 상대 접속 대기 중...              │
-  │                                                  │
-  │  상대방이 이 명령어로 접속:                       │
-  │                                                  │
-  │  python terminal_chess.py --connect {my_ip} \\   │
-  │         --port {port}                             │
-  │                                                  │
-  │  (Ctrl+C로 취소)                                  │
-  └──────────────────────────────────────────────────┘
+    +----------------------------------------------------------+
+    |  SERVER MODE - Waiting for opponent...                    |
+    +----------------------------------------------------------+
+    |                                                          |
+    |  Opponent should run:                                    |
+    |                                                          |
+    |  python3 terminal_chess.py --connect {my_ip:<15s}        |
+    |          --port {port}                                    |
+    |                                                          |
+    |  (Ctrl+C to cancel)                                      |
+    +----------------------------------------------------------+
 """)
 
     try:
         conn, addr = sock.accept()
     except KeyboardInterrupt:
         sock.close()
-        print("\n  서버를 종료합니다.")
+        print("\n    Server stopped.")
         return
 
-    print(f"  ✅ {addr[0]}:{addr[1]} 에서 접속!")
+    print(f"    Connected: {addr[0]}:{addr[1]}")
 
     # 핸드셰이크: 이름 교환
     handshake = json.dumps({'name': name, 'color': 'white'}).encode('utf-8')
@@ -1238,7 +1272,7 @@ def run_server(host='0.0.0.0', port=5555, name='호스트'):
     opp_data = json.loads(conn.recv(opp_length).decode('utf-8'))
     opponent_name = opp_data.get('name', '상대방')
 
-    print(f"  🎮 {opponent_name}과 대전 시작! (호스트=백)")
+    print(f"    Game start vs {opponent_name}! (host=white)")
 
     game = NetworkChess(conn, my_color='white', opponent_name=opponent_name)
     game.run()
@@ -1247,7 +1281,7 @@ def run_server(host='0.0.0.0', port=5555, name='호스트'):
 
 def run_client(host, port=5555, name='게스트'):
     """클라이언트 모드: 서버에 접속"""
-    print(f"\n  🔗 {host}:{port}에 접속 중...")
+    print(f"\n    Connecting to {host}:{port}...")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -1255,10 +1289,10 @@ def run_client(host, port=5555, name='게스트'):
         sock.connect((host, port))
         sock.settimeout(None)
     except Exception as e:
-        print(f"  ❌ 접속 실패: {e}")
+        print(f"    Connection failed: {e}")
         return
 
-    print(f"  ✅ 접속 성공!")
+    print(f"    Connected!")
 
     # 핸드셰이크: 서버에서 색상 수신
     raw_len = sock.recv(4)
@@ -1271,7 +1305,7 @@ def run_client(host, port=5555, name='게스트'):
     length = len(handshake)
     sock.sendall(length.to_bytes(4, 'big') + handshake)
 
-    print(f"  🎮 {opponent_name}과 대전 시작! (게스트=흑)")
+    print(f"    Game start vs {opponent_name}! (guest=black)")
 
     game = NetworkChess(sock, my_color='black', opponent_name=opponent_name)
     game.run()
@@ -1293,32 +1327,32 @@ def main():
 
     # 네트워크 모드
     if args.connect:
-        name = args.name or input("  이름 입력: ").strip() or "게스트"
+        name = args.name or input("    Your name: ").strip() or "Guest"
         run_client(args.connect, args.port, name)
         return
     if args.host is not None:
-        name = args.name or input("  이름 입력: ").strip() or "호스트"
+        name = args.name or input("    Your name: ").strip() or "Host"
         run_server(args.host or '0.0.0.0', args.port, name)
         return
 
     # 로컬 모드
     print(f"""
-  ╔══════════════════════════════════════════╗
-  ║         ♔  터미널 체스  ♚               ║
-  ╠══════════════════════════════════════════╣
-  ║                                          ║
-  ║   1. 👥 사람 vs 사람 (로컬)             ║
-  ║   2. 🤖 사람 vs AI (쉬움)               ║
-  ║   3. 🤖 사람 vs AI (보통)               ║
-  ║   4. 🤖 사람 vs AI (어려움)             ║
-  ║   5. 🌐 네트워크 대전 (호스트)           ║
-  ║   6. 🌐 네트워크 대전 (접속)             ║
-  ║   q. 종료                                ║
-  ║                                          ║
-  ╚══════════════════════════════════════════╝
+    +--------------------------------------------------+
+    |             TERMINAL CHESS                        |
+    +--------------------------------------------------+
+    |                                                  |
+    |   1.  Human vs Human  (local)                    |
+    |   2.  Human vs AI     (easy,   depth=2)          |
+    |   3.  Human vs AI     (normal, depth=3)          |
+    |   4.  Human vs AI     (hard,   depth=4)          |
+    |   5.  Network game    (host / server)             |
+    |   6.  Network game    (join / client)             |
+    |   q.  Quit                                       |
+    |                                                  |
+    +--------------------------------------------------+
 """)
 
-    choice = safe_input("  선택: ").strip()
+    choice = safe_input("    Select: ").strip()
 
     if choice == '1':
         ui = TerminalChessUI()
@@ -1333,17 +1367,17 @@ def main():
         ui = TerminalChessAI(ai_color='black', depth=4)
         ui.run()
     elif choice == '5':
-        name = safe_input("  이름 입력: ").strip() or "호스트"
-        port = safe_input("  포트 번호 [5555]: ").strip()
+        name = safe_input("    Your name: ").strip() or "Host"
+        port = safe_input("    Port [5555]: ").strip()
         port = int(port) if port else 5555
         run_server('0.0.0.0', port, name)
     elif choice == '6':
-        host = safe_input("  상대 IP 주소: ").strip()
+        host = safe_input("    Server IP: ").strip()
         if not host:
-            print("  ❌ IP 주소를 입력하세요.")
+            print("    ERROR: IP address required.")
             return
-        name = safe_input("  이름 입력: ").strip() or "게스트"
-        port = safe_input("  포트 번호 [5555]: ").strip()
+        name = safe_input("    Your name: ").strip() or "Guest"
+        port = safe_input("    Port [5555]: ").strip()
         port = int(port) if port else 5555
         run_client(host, port, name)
     elif choice in ('q', 'quit'):

@@ -1,133 +1,161 @@
-# ♔ Chess Game ♚
+# Chess Game
 
-브라우저(웹) 및 터미널에서 플레이 가능한 온라인 체스 게임입니다.
+Browser (web) and terminal chess game with online multiplayer support.
 
-## 기능
+## Features
 
-### 웹 버전 (Node.js)
-- 브라우저에서 마우스로 플레이
-- WebSocket 기반 실시간 대전
-- 드래그 & 클릭으로 기물 이동
-- 합법수 하이라이트
+### Web Version (Node.js)
+- Play in browser with mouse
+- WebSocket-based real-time multiplayer
+- Drag & click to move pieces
+- Legal move highlighting
 
-### 터미널 버전 (Python)
-- 키보드만으로 플레이 (`e2 e4` 형식)
-- 유니코드 기물 + ANSI 컬러 체스판
-- AI 대전 (Minimax + Alpha-Beta 가지치기, 난이도 3단계)
-- **네트워크 대전** — 원격 서버 간 TCP 소켓 대전
+### Terminal Version (Python)
+- Keyboard-only play (`e2 e4` format)
+- ASCII pieces with ANSI color board (works on any terminal)
+- AI opponent (Minimax + Alpha-Beta pruning, 3 difficulty levels)
+- **Network play** — TCP socket multiplayer between remote servers
 
-### 체스 엔진 (공통)
-- 모든 규칙 지원: 캐슬링, 앙파상, 프로모션
-- 체크 / 체크메이트 / 스테일메이트 판정
-- 합법수 검증 (핀, 체크 탈출 자동 처리)
+### Chess Engine
+- Full rules: castling, en passant, promotion
+- Check / checkmate / stalemate detection
+- Legal move validation (pins, check escape auto-handled)
 
 ---
 
-## 설치 및 실행
+## Quick Start
 
-### 요구사항
+### Requirements
 
-- **웹 버전**: Node.js 18+
-- **터미널 버전**: Python 3.8+ (추가 패키지 없음)
+- **Web version**: Node.js 18+
+- **Terminal version**: Python 3.8+ (no packages needed)
 
-### 설치
+### Install
 
 ```bash
 git clone https://github.com/<your-username>/chess.git
 cd chess
 ```
 
-### 웹 버전 실행
+### Web Version
 
 ```bash
 npm install
 node server.js
 ```
 
-브라우저에서 `http://localhost:3000` 접속 (탭 2개로 대전)
+Open `http://localhost:3000` in 2 browser tabs.
 
-### 터미널 버전 실행
+### Terminal Version
 
 ```bash
 python3 terminal_chess.py
 ```
 
-메뉴에서 모드를 선택합니다:
-
+Menu:
 ```
-  ╔══════════════════════════════════════════╗
-  ║         ♔  터미널 체스  ♚               ║
-  ╠══════════════════════════════════════════╣
-  ║                                          ║
-  ║   1. 👥 사람 vs 사람 (로컬)             ║
-  ║   2. 🤖 사람 vs AI (쉬움)               ║
-  ║   3. 🤖 사람 vs AI (보통)               ║
-  ║   4. 🤖 사람 vs AI (어려움)             ║
-  ║   5. 🌐 네트워크 대전 (호스트)           ║
-  ║   6. 🌐 네트워크 대전 (접속)             ║
-  ║   q. 종료                                ║
-  ║                                          ║
-  ╚══════════════════════════════════════════╝
+    +--------------------------------------------------+
+    |             TERMINAL CHESS                        |
+    +--------------------------------------------------+
+    |                                                  |
+    |   1.  Human vs Human  (local)                    |
+    |   2.  Human vs AI     (easy,   depth=2)          |
+    |   3.  Human vs AI     (normal, depth=3)          |
+    |   4.  Human vs AI     (hard,   depth=4)          |
+    |   5.  Network game    (host / server)             |
+    |   6.  Network game    (join / client)             |
+    |   q.  Quit                                       |
+    |                                                  |
+    +--------------------------------------------------+
+```
+
+Board display:
+```
+         a        b        c        d        e        f        g        h
+
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  8 |   r    |   n    |   b    |   q    |   k    |   b    |   n    |   r    | 8
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  7 |   p    |   p    |   p    |   p    |   p    |   p    |   p    |   p    | 7
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  6 |        |        |        |        |        |        |        |        | 6
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  5 |        |        |        |        |        |        |        |        | 5
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  4 |        |        |        |        |        |        |        |        | 4
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  3 |        |        |        |        |        |        |        |        | 3
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  2 |   P    |   P    |   P    |   P    |   P    |   P    |   P    |   P    | 2
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+  1 |   R    |   N    |   B    |   Q    |   K    |   B    |   N    |   R    | 1
+    +--------+--------+--------+--------+--------+--------+--------+--------+
+         a        b        c        d        e        f        g        h
+
+    White = UPPERCASE (K Q R B N P)
+    Black = lowercase (k q r b n p)
 ```
 
 ---
 
-## 네트워크 대전 (리눅스 서버 간 대전)
+## Network Play (Linux Server vs Server)
 
-두 대의 리눅스 서버에서 SSH 터미널로 체스를 즐길 수 있습니다.
+Play chess between two Linux servers over SSH terminals.
 
-### 구성도
+### Architecture
 
 ```
-  서버 A (호스트, 백)                서버 B (접속, 흑)
-  ┌──────────────────┐             ┌──────────────────┐
-  │  $ python3       │    TCP/IP   │  $ python3       │
-  │  terminal_chess  │◄───────────►│  terminal_chess  │
-  │  --host 0.0.0.0  │   포트 5555 │  --connect <IP>  │
-  └──────────────────┘             └──────────────────┘
+  Server A (host, white)             Server B (client, black)
+  +--------------------+             +--------------------+
+  |  $ python3         |    TCP/IP   |  $ python3         |
+  |  terminal_chess.py |<----------->|  terminal_chess.py |
+  |  --host 0.0.0.0    |   port 5555 |  --connect <IP>    |
+  +--------------------+             +--------------------+
 ```
 
-### 설치 (양쪽 서버 모두)
+### Install (both servers)
 
 ```bash
-# 1. 저장소 클론
+# 1. Clone the repo
 git clone https://github.com/<your-username>/chess.git
 cd chess
 
-# Python3만 있으면 됨 (추가 패키지 불필요)
-python3 --version   # 3.8 이상 확인
+# Only Python3 required (no pip install needed)
+python3 --version   # 3.8 or higher
 ```
 
-### 실행 — 서버 A (호스트)
+### Server A (host)
 
 ```bash
-python3 terminal_chess.py --host 0.0.0.0 --port 5555 --name "철수"
+python3 terminal_chess.py --host 0.0.0.0 --port 5555 --name "Alice"
 ```
 
-출력:
+Output:
 ```
-  ┌──────────────────────────────────────────────────┐
-  │  🌐 서버 모드 — 상대 접속 대기 중...              │
-  │                                                  │
-  │  상대방이 이 명령어로 접속:                       │
-  │                                                  │
-  │  python terminal_chess.py --connect 10.0.1.5 \   │
-  │         --port 5555                               │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+    +----------------------------------------------------------+
+    |  SERVER MODE - Waiting for opponent...                    |
+    +----------------------------------------------------------+
+    |                                                          |
+    |  Opponent should run:                                    |
+    |                                                          |
+    |  python3 terminal_chess.py --connect 10.0.1.5            |
+    |          --port 5555                                     |
+    |                                                          |
+    |  (Ctrl+C to cancel)                                      |
+    +----------------------------------------------------------+
 ```
 
-### 실행 — 서버 B (접속)
+### Server B (client)
 
 ```bash
-python3 terminal_chess.py --connect <서버A의 IP> --port 5555 --name "영희"
+python3 terminal_chess.py --connect <Server-A-IP> --port 5555 --name "Bob"
 ```
 
-접속되면 양쪽 터미널에 체스판이 표시되고 대전이 시작됩니다!
+Once connected, both terminals show the chess board and the game begins!
 
-### 방화벽 설정
+### Firewall Setup
 
-서버 A에서 해당 포트를 열어야 합니다:
+Open the port on Server A:
 
 ```bash
 # Ubuntu/Debian (ufw)
@@ -137,67 +165,67 @@ sudo ufw allow 5555/tcp
 sudo firewall-cmd --add-port=5555/tcp --permanent
 sudo firewall-cmd --reload
 
-# 또는 iptables
+# iptables
 sudo iptables -A INPUT -p tcp --dport 5555 -j ACCEPT
 ```
 
-### 포트가 막혀 있다면? — SSH 터널
+### Blocked Port? — SSH Tunnel
 
-방화벽을 건드릴 수 없을 때, SSH 터널로 우회할 수 있습니다:
+If you can't open firewall ports, use an SSH tunnel:
 
 ```bash
-# 서버 B에서 실행 (서버 A의 5555 포트를 로컬로 터널링)
-ssh -L 5555:localhost:5555 user@서버A_IP
+# On Server B: tunnel Server A's port 5555 to localhost
+ssh -L 5555:localhost:5555 user@ServerA_IP
 
-# 다른 터미널에서 localhost로 접속
-python3 terminal_chess.py --connect localhost --port 5555 --name "영희"
+# In another terminal, connect via localhost
+python3 terminal_chess.py --connect localhost --port 5555 --name "Bob"
 ```
 
 ---
 
-## 조작법
+## Controls
 
 ```
-  이동:      e2 e4     (출발 도착, 공백 구분)
-             e2e4      (붙여써도 가능)
+  Move:       e2 e4     (from to, space separated)
+              e2e4      (no space also works)
 
-  기물 선택: e2        (합법수 하이라이트 표시)
+  Select:     e2        (highlight legal moves)
 
-  프로모션:  e7e8q     (q=퀸, r=룩, b=비숍, n=나이트)
+  Promotion:  e7e8q     (q=queen, r=rook, b=bishop, n=knight)
 
-  캐슬링:   e1 g1     (킹사이드)
-             e1 c1     (퀸사이드)
+  Castling:   e1 g1     (king-side)
+              e1 c1     (queen-side)
 
-  기타:     help      도움말
-             resign    기권
-             quit      종료
+  Commands:   help      show help
+              resign    give up
+              quit      exit game
 ```
 
 ---
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 chess/
-├── server.js            # 웹 버전 서버 (Node.js + WebSocket)
+├── server.js            # Web server (Node.js + WebSocket)
 ├── public/
-│   └── index.html       # 웹 버전 클라이언트
-├── terminal_chess.py    # 터미널 버전 (Python, 단일 파일)
-├── package.json         # Node.js 의존성
+│   └── index.html       # Web client
+├── terminal_chess.py    # Terminal version (Python, single file)
+├── package.json         # Node.js dependencies
 └── README.md
 ```
 
-## 기술 스택
+## Tech Stack
 
-| 구성 요소 | 웹 버전 | 터미널 버전 |
-|----------|---------|------------|
-| 언어 | JavaScript | Python 3 |
-| 서버 | Express + ws | 소켓 (stdlib) |
-| 통신 | WebSocket | TCP 소켓 |
-| UI | HTML/CSS/Canvas | ANSI 터미널 |
+| Component | Web Version | Terminal Version |
+|-----------|-------------|-----------------|
+| Language | JavaScript | Python 3 |
+| Server | Express + ws | Socket (stdlib) |
+| Protocol | WebSocket | TCP Socket |
+| UI | HTML/CSS/Canvas | ANSI Terminal |
 | AI | — | Minimax + Alpha-Beta |
-| 외부 의존성 | express, ws | 없음 |
+| Dependencies | express, ws | None |
 
-## 라이선스
+## License
 
 MIT
